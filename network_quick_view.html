@@ -116,7 +116,8 @@ const DEFAULT_DEVICES = [
   {id:crypto.randomUUID(),location:"範例地點 B",node:"範例節點 Gamma",name:"範例 VPN 裝置",ips:["203.0.113.1"],purpose:"示範 VPN Server",roles:{router:false,peerRelay:false,vpnServer:true,dhcpNetworks:[]}}
 ];
 
-let state = JSON.parse(localStorage.getItem("networkQuickViewV3")||"null") || {devices:DEFAULT_DEVICES.map(d=>({...d,id:crypto.randomUUID(),roles:{...(d.roles||{})}})),networks:DEFAULT_NETWORKS.map(n=>({...n}))};
+// 每次開啟都從去識別化範例開始；個人資料以手動載入 TXT 為準。
+let state = {devices:DEFAULT_DEVICES.map(d=>({...d,id:crypto.randomUUID(),roles:{...(d.roles||{})}})),networks:DEFAULT_NETWORKS.map(n=>({...n}))};
 let devices=state.devices||[], networks=state.networks||[];
 const deviceDlg=document.getElementById("deviceDlg"), networkDlg=document.getElementById("networkDlg");
 
