@@ -86,6 +86,17 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 <div class="field">
   <label>DHCP Server：這台負責發放哪些網段？</label>
   <div id="dhcpNetworks" class="checks"></div>
+  <div style="margin-top:10px"><button type="button" class="secondary" onclick="toggleInlineNetwork()">＋ 新增 DHCP 網段</button></div>
+  <div id="inlineNetworkBox" style="display:none;margin-top:10px;padding:10px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px">
+    <div class="net-row" style="margin-bottom:0">
+      <input id="inlineNetName" placeholder="網段名稱">
+      <input id="inlineNetCidr" placeholder="例如 192.0.2.0/24">
+      <select id="inlineNetType"><option value="lan">LAN / 一般網段</option><option value="vpn">VPN 網段</option><option value="other">其他</option></select>
+      <input id="inlineNetColor" type="color" value="#e9eef5">
+      <button type="button" onclick="addInlineDhcpNetwork()">加入</button>
+    </div>
+    <div class="hint">加入後會自動勾選為這台裝置負責的 DHCP 網段；只有儲存裝置後才會正式加入網段設定。</div>
+  </div>
   <div class="hint">可複選。DHCP 標籤會自動使用該網段的顏色；若不負責 DHCP，全部不勾即可。</div>
 </div>
 <div class="field"><label>用途 / 備註</label><input id="purpose"></div>
@@ -137,17 +148,43 @@ function netForIp(ip){
     .sort((a,b)=>cidrPrefix(b.cidr)-cidrPrefix(a.cidr))[0];
 }
 function textColor(bg){const x=bg.replace("#","");if(x.length!==6)return "#172033";const r=parseInt(x.slice(0,2),16),g=parseInt(x.slice(2,4),16),b=parseInt(x.slice(4,6),16);return ((r*299+g*587+b*114)/1000)>165?"#172033":"#fff"}
+let pendingDeviceNetworks=[];
+function deviceNetworkCandidates(){ return [...networks, ...pendingDeviceNetworks]; }
 function renderDhcpNetworkChoices(selected=[]){
   const root=document.getElementById("dhcpNetworks");
   if(!root) return;
   const chosen=new Set(Array.isArray(selected)?selected:[]);
-  const candidates=networks.filter(n=>n.type!=="tailscale");
+  const candidates=deviceNetworkCandidates().filter(n=>n.type!=="tailscale");
   root.innerHTML=candidates.length ? candidates.map((n,i)=>`
     <label>
       <input type="checkbox" class="dhcp-net-check" value="${esc(n.name)}" ${chosen.has(n.name)?"checked":""}>
       <span class="badge" style="background:${n.color};color:${textColor(n.color)}">${esc(n.name)} · ${esc(n.cidr)}</span>
     </label>
   `).join("") : '<span class="hint">請先到「網段與顏色」新增可用網段。</span>';
+}
+
+function toggleInlineNetwork(){
+  const box=document.getElementById("inlineNetworkBox");
+  box.style.display=box.style.display==="none"?"block":"none";
+}
+function addInlineDhcpNetwork(){
+  const name=document.getElementById("inlineNetName").value.trim();
+  const cidr=document.getElementById("inlineNetCidr").value.trim();
+  const type=document.getElementById("inlineNetType").value;
+  const color=document.getElementById("inlineNetColor").value;
+  if(!name||!cidr){alert("請輸入網段名稱與 CIDR。");return;}
+  const [base,bitsS]=cidr.split("/");
+  const bits=Number(bitsS);
+  if(ipToInt(base)===null||!Number.isInteger(bits)||bits<0||bits>32){alert("CIDR 格式不正確。");return;}
+  if(deviceNetworkCandidates().some(n=>n.name===name)){alert("已有相同名稱的網段。");return;}
+  pendingDeviceNetworks.push({name,cidr,type,color});
+  const selected=[...document.querySelectorAll(".dhcp-net-check:checked")].map(el=>el.value);
+  selected.push(name);
+  renderDhcpNetworkChoices(selected);
+  document.getElementById("inlineNetName").value="";
+  document.getElementById("inlineNetCidr").value="";
+  document.getElementById("inlineNetColor").value="#e9eef5";
+  document.getElementById("inlineNetworkBox").style.display="none";
 }
 
 function render(){
@@ -203,6 +240,8 @@ function render(){
 }
 
 function openAdd(){
+  pendingDeviceNetworks=[];
+  document.getElementById("inlineNetworkBox").style.display="none";
   document.getElementById("deviceTitle").textContent="新增裝置";
   ["editId","location","node","name","ips","purpose"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("isRouter").checked=false;
@@ -212,6 +251,8 @@ function openAdd(){
   deviceDlg.showModal();
 }
 function editDevice(id){
+  pendingDeviceNetworks=[];
+  document.getElementById("inlineNetworkBox").style.display="none";
   const d=devices.find(x=>x.id===id);if(!d)return;
   document.getElementById("deviceTitle").textContent="編輯裝置";
   document.getElementById("editId").value=d.id;
@@ -263,6 +304,10 @@ deviceForm.addEventListener("submit",e=>{
     }
   };
 
+  if(pendingDeviceNetworks.length){
+    networks.push(...pendingDeviceNetworks.map(n=>({...n})));
+    pendingDeviceNetworks=[];
+  }
   const i=devices.findIndex(d=>d.id===obj.id);
   if(i>=0) devices[i]=obj;
   else devices.push(obj);
