@@ -28,7 +28,7 @@ button.secondary,.filebtn.secondary{background:#e9eef5;color:#213047} button.dan
 .device-list{padding:12px;display:flex;flex-direction:column;gap:10px}.device{background:#fff;border:1px solid var(--line);border-radius:10px;padding:13px}.device-top{display:flex;justify-content:space-between;gap:10px}
 .device h4{margin:0 0 7px;font-size:16px}.purpose{font-size:12px;color:var(--muted);margin-bottom:8px}.role-row{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}.device-section-label{font-size:12px;font-weight:600;color:#667085;margin:6px 0}.device-divider{border:0;border-top:1px solid var(--line);margin:10px 0}
 .badge.role{background:#fff4d8}.badge.tailscale{background:#eee9ff}.badge.vpnserver{background:#dff6ef}
-.ip-list{display:flex;flex-direction:column;gap:6px}.ip-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px;padding:4px 7px;border:1px solid #0001}
+.network-list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.ip-list{display:flex;flex-direction:column;gap:6px}.ip-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px;padding:4px 7px;border:1px solid #0001}
 .actions{display:flex;gap:6px}.actions button{padding:5px 8px;font-size:12px}.empty{color:var(--muted);font-size:13px;padding:7px 0}
 dialog{border:0;border-radius:12px;padding:0;box-shadow:0 15px 50px #0004;width:min(620px,95vw)} form{padding:20px} form h2{margin-top:0}.field{margin:12px 0}.field label{display:block;font-size:13px;color:#566173;margin-bottom:5px}
 input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:7px;font:inherit;background:white} textarea{min-height:72px}
@@ -95,7 +95,7 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
       <input id="inlineNetColor" type="color" value="#e9eef5">
       <button type="button" onclick="addInlineDhcpNetwork()">加入</button>
     </div>
-    <div class="hint">加入後會自動勾選為這台裝置負責的 DHCP 網段；只有儲存裝置後才會正式加入網段設定。</div>
+    <div class="hint">CIDR 範例：192.0.2.0/24。加入後會自動勾選為這台裝置負責的 DHCP 網段；只有儲存裝置後才會正式加入網段設定。</div>
   </div>
   <div class="hint">可複選。DHCP 標籤會自動使用該網段的顏色；若不負責 DHCP，全部不勾即可。</div>
 </div>
@@ -141,6 +141,23 @@ function cidrPrefix(cidr){
   const bits=Number(String(cidr||"").split("/")[1]);
   return Number.isInteger(bits)&&bits>=0&&bits<=32?bits:-1;
 }
+function validateCidr(cidr){
+  const value=String(cidr||"").trim();
+  const parts=value.split("/");
+  if(parts.length!==2) return {ok:false,message:"CIDR 格式不正確，例如：192.0.2.0/24"};
+  const base=parts[0].trim(), bits=Number(parts[1]);
+  const baseInt=ipToInt(base);
+  if(baseInt===null||!Number.isInteger(bits)||bits<0||bits>32){
+    return {ok:false,message:"CIDR 格式不正確，例如：192.0.2.0/24"};
+  }
+  const mask=bits===0?0:(0xffffffff << (32-bits))>>>0;
+  const networkInt=(baseInt & mask)>>>0;
+  if(networkInt!==baseInt){
+    const normalized=[(networkInt>>>24)&255,(networkInt>>>16)&255,(networkInt>>>8)&255,networkInt&255].join(".")+"/"+bits;
+    return {ok:false,message:`CIDR 應填網路位址；這個網段應寫成 ${normalized}。例如：192.0.2.0/24`};
+  }
+  return {ok:true,value:`${base}/${bits}`};
+}
 function netForIp(ip){
   // 若多個網段同時符合，採用最精確的 CIDR（Longest Prefix Match）。
   return networks
@@ -173,11 +190,10 @@ function addInlineDhcpNetwork(){
   const type=document.getElementById("inlineNetType").value;
   const color=document.getElementById("inlineNetColor").value;
   if(!name||!cidr){alert("請輸入網段名稱與 CIDR。");return;}
-  const [base,bitsS]=cidr.split("/");
-  const bits=Number(bitsS);
-  if(ipToInt(base)===null||!Number.isInteger(bits)||bits<0||bits>32){alert("CIDR 格式不正確。");return;}
+  const cidrCheck=validateCidr(cidr);
+  if(!cidrCheck.ok){alert(cidrCheck.message);return;}
   if(deviceNetworkCandidates().some(n=>n.name===name)){alert("已有相同名稱的網段。");return;}
-  pendingDeviceNetworks.push({name,cidr,type,color});
+  pendingDeviceNetworks.push({name,cidr:cidrCheck.value,type,color});
   const selected=[...document.querySelectorAll(".dhcp-net-check:checked")].map(el=>el.value);
   selected.push(name);
   renderDhcpNetworkChoices(selected);
@@ -214,9 +230,15 @@ function render(){
             r.peerRelay?'<span class="badge tailscale">Peer Relay</span>':"",
             r.vpnServer?'<span class="badge vpnserver">VPN Server</span>':""
           ].join("");
+          const matchedNetworks=unique((d.ips||[]).map(ip=>netForIp(ip)?.name));
+          const networkBadges=matchedNetworks.map(netName=>{
+            const n=networks.find(x=>x.name===netName);
+            if(!n) return "";
+            return `<span class="badge" style="background:${n.color};color:${textColor(n.color)}">${esc(n.name)} · ${esc(n.cidr)}</span>`;
+          }).join("");
           const ipRows=(d.ips||[]).map(ip=>{
             const n=netForIp(ip), style=n?`background:${n.color};color:${textColor(n.color)}`:"background:#f1f4f8";
-            const typeBadge=n&&n.type==="tailscale"?'<span class="badge tailscale">Tailscale IP</span>':(n?`<span class="badge">${esc(n.name)}</span>`:"");
+            const typeBadge=n&&n.type==="tailscale"?'<span class="badge tailscale">Tailscale IP</span>':"";
             return `<div class="ip-row"><span class="ip" style="${style}">${esc(ip)}</span>${typeBadge}</div>`;
           }).join("") || '<div class="empty">尚未記錄 IP</div>';
           return `<div class="device">
@@ -229,6 +251,8 @@ function render(){
               </div>
               <div class="actions"><button onclick="editDevice('${d.id}')">編輯</button><button class="danger" onclick="removeDevice('${d.id}')">刪除</button></div>
             </div>
+            ${networkBadges?`<div class="device-section-label">所屬網段</div><div class="network-list">${networkBadges}</div>`:""}
+            <div class="device-section-label">IP</div>
             <div class="ip-list">${ipRows}</div>
           </div>`
         }).join("")
@@ -356,7 +380,16 @@ function deleteNetworkRow(i){
 networkForm.addEventListener("submit",e=>{
   e.preventDefault();
   syncNetworkDraftFromRows();
-  networks=networkDrafts.filter(n=>n.name&&n.cidr).map(n=>({...n}));
+  const next=[];
+  for(let i=0;i<networkDrafts.length;i++){
+    const n=networkDrafts[i];
+    if(!n.name&&!n.cidr) continue;
+    if(!n.name||!n.cidr){alert(`第 ${i+1} 個網段請完整輸入名稱與 CIDR。`);return;}
+    const check=validateCidr(n.cidr);
+    if(!check.ok){alert(`第 ${i+1} 個網段：${check.message}`);return;}
+    next.push({...n,cidr:check.value});
+  }
+  networks=next;
   save();
   networkDlg.close();
 });
@@ -395,6 +428,7 @@ function exportStaticHtml(){
     .badge.role{background:#fff4d8}
     .badge.tailscale{background:#eee9ff}
     .badge.vpnserver{background:#dff6ef}
+    .network-list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
     .ip-list{display:flex;flex-direction:column;gap:6px}
     .ip-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px;padding:4px 7px;border:1px solid #0001}
@@ -434,10 +468,16 @@ function exportStaticHtml(){
               r.peerRelay?'<span class="badge tailscale">Peer Relay</span>':"",
               r.vpnServer?'<span class="badge vpnserver">VPN Server</span>':""
             ].join("");
+            const matchedNetworks=unique((d.ips||[]).map(ip=>netForIp(ip)?.name));
+            const networkBadges=matchedNetworks.map(netName=>{
+              const n=networks.find(x=>x.name===netName);
+              if(!n) return "";
+              return `<span class="badge" style="background:${n.color};color:${textColor(n.color)}">${esc(n.name)} · ${esc(n.cidr)}</span>`;
+            }).join("");
             const ipRows=(d.ips||[]).map(ip=>{
               const n=netForIp(ip);
               const style=n?`background:${n.color};color:${textColor(n.color)}`:"background:#f1f4f8";
-              const label=n?`<span class="badge">${esc(n.name)}</span>`:"";
+              const label=n&&n.type==="tailscale"?'<span class="badge tailscale">Tailscale IP</span>':"";
               return `<div class="ip-row"><span class="ip" style="${style}">${esc(ip)}</span>${label}</div>`;
             }).join("") || '<div class="empty">尚未記錄 IP</div>';
 
@@ -446,6 +486,8 @@ function exportStaticHtml(){
               ${d.purpose?`<div class="purpose">${esc(d.purpose)}</div>`:""}
               ${roleBadges?`<div class="device-section-label">裝置角色</div><div class="role-row">${roleBadges}</div>`:""}
               ${dhcpBadges?`<hr class="device-divider"><div class="device-section-label">DHCP 發放網段</div><div class="role-row">${dhcpBadges}</div>`:""}
+              ${networkBadges?`<div class="device-section-label">所屬網段</div><div class="network-list">${networkBadges}</div>`:""}
+              <div class="device-section-label">IP</div>
               <div class="ip-list">${ipRows}</div>
             </div>`;
           }).join("")}
