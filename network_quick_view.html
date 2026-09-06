@@ -84,20 +84,23 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 </div></div>
 <hr class="device-divider">
 <div class="field">
-  <label>DHCP Server：這台負責發放哪些網段？</label>
-  <div id="dhcpNetworks" class="checks"></div>
-  <div style="margin-top:10px"><button type="button" class="secondary" onclick="toggleInlineNetwork()">＋ 新增 DHCP 網段</button></div>
-  <div id="inlineNetworkBox" style="display:none;margin-top:10px;padding:10px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px">
-    <div class="net-row" style="margin-bottom:0">
-      <input id="inlineNetName" placeholder="網段名稱">
-      <input id="inlineNetCidr" placeholder="例如 192.0.2.0/24">
-      <select id="inlineNetType"><option value="lan">LAN / 一般網段</option><option value="vpn">VPN 網段</option><option value="other">其他</option></select>
-      <input id="inlineNetColor" type="color" value="#e9eef5">
-      <button type="button" onclick="addInlineDhcpNetwork()">加入</button>
+  <label class="checks" style="margin-bottom:8px"><span><input id="isDhcpServer" type="checkbox" onchange="toggleDhcpSection()"> DHCP Server</span></label>
+  <div id="dhcpServerOptions" style="display:none">
+    <div class="device-section-label" style="margin-top:0">這台負責發放哪些網段？</div>
+    <div id="dhcpNetworks" class="checks"></div>
+    <div style="margin-top:10px"><button type="button" class="secondary" onclick="toggleInlineNetwork()">＋ 新增 DHCP 網段</button></div>
+    <div id="inlineNetworkBox" style="display:none;margin-top:10px;padding:10px;background:#f7f9fc;border:1px solid var(--line);border-radius:8px">
+      <div class="net-row" style="margin-bottom:0">
+        <input id="inlineNetName" placeholder="網段名稱">
+        <input id="inlineNetCidr" placeholder="例如 192.0.2.0/24">
+        <select id="inlineNetType"><option value="lan">LAN / 一般網段</option><option value="vpn">VPN 網段</option><option value="other">其他</option></select>
+        <input id="inlineNetColor" type="color" value="#e9eef5">
+        <button type="button" onclick="addInlineDhcpNetwork()">加入</button>
+      </div>
+      <div class="hint">CIDR 範例：192.0.2.0/24。加入後會自動勾選為這台裝置負責的 DHCP 網段；只有儲存裝置後才會正式加入網段設定。</div>
     </div>
-    <div class="hint">CIDR 範例：192.0.2.0/24。加入後會自動勾選為這台裝置負責的 DHCP 網段；只有儲存裝置後才會正式加入網段設定。</div>
+    <div class="hint">可複選。DHCP 標籤會自動使用該網段的顏色。</div>
   </div>
-  <div class="hint">可複選。DHCP 標籤會自動使用該網段的顏色；若不負責 DHCP，全部不勾即可。</div>
 </div>
 <div class="field"><label>用途 / 備註</label><input id="purpose"></div>
 <div class="form-actions"><button type="button" class="secondary" onclick="deviceDlg.close()">取消</button><button type="submit">儲存</button></div>
@@ -178,6 +181,15 @@ function renderDhcpNetworkChoices(selected=[]){
       <span class="badge" style="background:${n.color};color:${textColor(n.color)}">${esc(n.name)} · ${esc(n.cidr)}</span>
     </label>
   `).join("") : '<span class="hint">請先到「網段與顏色」新增可用網段。</span>';
+}
+
+function toggleDhcpSection(){
+  const enabled=document.getElementById("isDhcpServer").checked;
+  const options=document.getElementById("dhcpServerOptions");
+  options.style.display=enabled?"block":"none";
+  if(!enabled){
+    document.getElementById("inlineNetworkBox").style.display="none";
+  }
 }
 
 function toggleInlineNetwork(){
@@ -271,7 +283,9 @@ function openAdd(){
   document.getElementById("isRouter").checked=false;
   document.getElementById("isPeerRelay").checked=false;
   document.getElementById("isVpnServer").checked=false;
+  document.getElementById("isDhcpServer").checked=false;
   renderDhcpNetworkChoices([]);
+  toggleDhcpSection();
   deviceDlg.showModal();
 }
 function editDevice(id){
@@ -294,7 +308,9 @@ function editDevice(id){
     const guessed=(d.ips||[]).map(ip=>netForIp(ip)).filter(n=>n && n.type!=="tailscale");
     if(guessed.length) dhcpSelected=[guessed[0].name];
   }
+  document.getElementById("isDhcpServer").checked=dhcpSelected.length>0 || d.roles?.dhcp===true;
   renderDhcpNetworkChoices(dhcpSelected);
+  toggleDhcpSection();
   deviceDlg.showModal();
 }
 function removeDevice(id){if(confirm("確定刪除這台裝置？")){devices=devices.filter(d=>d.id!==id);save();}}
@@ -312,6 +328,7 @@ deviceForm.addEventListener("submit",e=>{
   const isRouterEl = document.getElementById("isRouter");
   const isPeerRelayEl = document.getElementById("isPeerRelay");
   const isVpnServerEl = document.getElementById("isVpnServer");
+  const isDhcpServerEl = document.getElementById("isDhcpServer");
 
   const obj={
     id:editIdEl.value || crypto.randomUUID(),
@@ -324,14 +341,14 @@ deviceForm.addEventListener("submit",e=>{
       router:isRouterEl.checked,
       peerRelay:isPeerRelayEl.checked,
       vpnServer:isVpnServerEl.checked,
-      dhcpNetworks:[...document.querySelectorAll(".dhcp-net-check:checked")].map(el=>el.value)
+      dhcpNetworks:isDhcpServerEl.checked ? [...document.querySelectorAll(".dhcp-net-check:checked")].map(el=>el.value) : []
     }
   };
 
-  if(pendingDeviceNetworks.length){
+  if(isDhcpServerEl.checked && pendingDeviceNetworks.length){
     networks.push(...pendingDeviceNetworks.map(n=>({...n})));
-    pendingDeviceNetworks=[];
   }
+  pendingDeviceNetworks=[];
   const i=devices.findIndex(d=>d.id===obj.id);
   if(i>=0) devices[i]=obj;
   else devices.push(obj);
