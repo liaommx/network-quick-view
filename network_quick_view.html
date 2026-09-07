@@ -84,8 +84,8 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 </div></div>
 <hr class="device-divider">
 <div class="field">
-  <label class="checks" style="margin-bottom:8px"><span><input id="isDhcpServer" type="checkbox" onchange="toggleDhcpSection()"> DHCP Server</span></label>
-  <div id="dhcpServerOptions" style="display:none">
+  <label class="checks" style="margin-bottom:8px"><span><input id="isDhcpServer" type="checkbox" onchange="toggleDhcpSection()"> 是否為 DHCP Server</span></label>
+  <div id="dhcpServerOptions" style="visibility:hidden;pointer-events:none">
     <div class="device-section-label" style="margin-top:0">這台負責發放哪些網段？</div>
     <div id="dhcpNetworks" class="checks"></div>
     <div style="margin-top:10px"><button type="button" class="secondary" onclick="toggleInlineNetwork()">＋ 新增 DHCP 網段</button></div>
@@ -186,7 +186,8 @@ function renderDhcpNetworkChoices(selected=[]){
 function toggleDhcpSection(){
   const enabled=document.getElementById("isDhcpServer").checked;
   const options=document.getElementById("dhcpServerOptions");
-  options.style.display=enabled?"block":"none";
+  options.style.visibility=enabled?"visible":"hidden";
+  options.style.pointerEvents=enabled?"auto":"none";
   if(!enabled){
     document.getElementById("inlineNetworkBox").style.display="none";
   }
