@@ -128,10 +128,18 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 </div>
 <div class="field">
   <label>新的地點名稱</label>
-  <input id="renameLocationNew" placeholder="輸入新的地點名稱">
+  <input id="renameLocationNew" list="locationList" placeholder="輸入新名稱；輸入既有地點可直接合併">
 </div>
 <div class="form-actions" style="margin-top:10px">
   <button type="button" onclick="applyLocationRename()">套用地點名稱</button>
+</div>
+
+<div class="field" style="margin-top:12px">
+  <label>或直接合併到既有地點</label>
+  <select id="mergeLocationTarget"></select>
+</div>
+<div class="form-actions" style="margin-top:10px">
+  <button type="button" class="secondary" onclick="mergeLocation()">合併地點</button>
 </div>
 
 <hr class="device-divider">
@@ -420,13 +428,25 @@ function refreshRenameLocationChoices(preferred=""){
 
   document.getElementById("renameLocationNew").value="";
   document.getElementById("renameNodeNew").value="";
+  refreshMergeLocationChoices();
   refreshRenameNodeChoices();
+}
+
+function refreshMergeLocationChoices(){
+  const source=document.getElementById("renameLocationOld").value;
+  const target=document.getElementById("mergeLocationTarget");
+  const locations=unique(devices.map(d=>d.location)).filter(loc=>loc!==source);
+  target.innerHTML=locations.length
+    ? locations.map(loc=>`<option value="${esc(loc)}">${esc(loc)}</option>`).join("")
+    : '<option value="">沒有其他地點可合併</option>';
+  target.disabled=!locations.length;
 }
 
 function syncRenameNodeLocation(){
   const loc=document.getElementById("renameLocationOld").value;
   const nodeLoc=document.getElementById("renameNodeLocation");
   if([...nodeLoc.options].some(o=>o.value===loc)) nodeLoc.value=loc;
+  refreshMergeLocationChoices();
   refreshRenameNodeChoices();
 }
 
@@ -450,6 +470,20 @@ function applyLocationRename(){
   save();
   refreshRenameLocationChoices(newName);
   alert(`已更新地點名稱，共套用到 ${count} 台裝置。`);
+}
+
+function mergeLocation(){
+  const oldName=document.getElementById("renameLocationOld").value.trim();
+  const targetName=document.getElementById("mergeLocationTarget").value.trim();
+  if(!oldName){alert("目前沒有可合併的地點。");return;}
+  if(!targetName){alert("目前沒有其他既有地點可合併。");return;}
+  if(oldName===targetName){alert("來源與目標地點相同。");return;}
+
+  const count=devices.filter(d=>d.location===oldName).length;
+  devices.forEach(d=>{ if(d.location===oldName) d.location=targetName; });
+  save();
+  refreshRenameLocationChoices(targetName);
+  alert(`已將「${oldName}」合併到「${targetName}」，共移動 ${count} 台裝置。`);
 }
 
 function applyNodeRename(){
