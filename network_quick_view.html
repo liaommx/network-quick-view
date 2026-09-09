@@ -187,8 +187,25 @@ const deviceDlg=document.getElementById("deviceDlg"), networkDlg=document.getEle
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function save(){render();}
 function unique(a){return [...new Set(a.filter(Boolean))];}
-function ipToInt(ip){const p=ip.split(".").map(Number);if(p.length!==4||p.some(x=>x<0||x>255||!Number.isInteger(x)))return null;return (((p[0]<<24)>>>0)+(p[1]<<16)+(p[2]<<8)+p[3])>>>0}
-function inCidr(ip,cidr){try{const [base,bitsS]=cidr.split("/"),bits=Number(bitsS);const a=ipToInt(ip),b=ipToInt(base);if(a===null||b===null||bits<0||bits>32)return false;const mask=bits===0?0:(0xffffffff << (32-bits))>>>0;return (a&mask)===(b&mask)}catch{return false}}
+function parseIPv4(ip){
+  const value=String(ip??"").trim();
+  if(!/^(0|[1-9]\d{0,2})(\.(0|[1-9]\d{0,2})){3}$/.test(value)) return null;
+  const parts=value.split(".").map(Number);
+  if(parts.some(x=>x<0||x>255||!Number.isInteger(x))) return null;
+  return {value,parts,int:((((parts[0]<<24)>>>0)+(parts[1]<<16)+(parts[2]<<8)+parts[3])>>>0)};
+}
+function ipToInt(ip){const parsed=parseIPv4(ip);return parsed?parsed.int:null;}
+function validateIPv4(ip){const parsed=parseIPv4(ip);return parsed?{ok:true,value:parsed.value}:{ok:false,message:"IPv4 格式不正確，例如：192.0.2.1"};}
+function inCidr(ip,cidr){
+  try{
+    const value=String(cidr??"").trim(), parts=value.split("/");
+    if(parts.length!==2||!/^(0|[1-9]\d?|[12]\d|3[0-2])$/.test(parts[1])) return false;
+    const bits=Number(parts[1]),a=ipToInt(ip),b=ipToInt(parts[0]);
+    if(a===null||b===null)return false;
+    const mask=bits===0?0:(0xffffffff << (32-bits))>>>0;
+    return (a&mask)===(b&mask);
+  }catch{return false}
+}
 function cidrPrefix(cidr){
   const bits=Number(String(cidr||"").split("/")[1]);
   return Number.isInteger(bits)&&bits>=0&&bits<=32?bits:-1;
@@ -197,9 +214,11 @@ function validateCidr(cidr){
   const value=String(cidr||"").trim();
   const parts=value.split("/");
   if(parts.length!==2) return {ok:false,message:"CIDR 格式不正確，例如：192.0.2.0/24"};
-  const base=parts[0].trim(), bits=Number(parts[1]);
+  const base=parts[0].trim(), bitsText=parts[1].trim();
+  if(!/^(0|[1-9]\d?|[12]\d|3[0-2])$/.test(bitsText)) return {ok:false,message:"CIDR 格式不正確，例如：192.0.2.0/24"};
+  const bits=Number(bitsText);
   const baseInt=ipToInt(base);
-  if(baseInt===null||!Number.isInteger(bits)||bits<0||bits>32){
+  if(baseInt===null){
     return {ok:false,message:"CIDR 格式不正確，例如：192.0.2.0/24"};
   }
   const mask=bits===0?0:(0xffffffff << (32-bits))>>>0;
@@ -379,18 +398,29 @@ deviceForm.addEventListener("submit",e=>{
   const isVpnServerEl = document.getElementById("isVpnServer");
   const isDhcpServerEl = document.getElementById("isDhcpServer");
 
+  const parsedIps=ipsEl.value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);
+  for(const ip of parsedIps){
+    const check=validateIPv4(ip);
+    if(!check.ok){alert(`IP「${ip}」：${check.message}`);return;}
+  }
+  const selectedDhcpNetworks=[...document.querySelectorAll(".dhcp-net-check:checked")].map(el=>el.value);
+  if(isDhcpServerEl.checked && selectedDhcpNetworks.length===0){
+    alert("已勾選 DHCP Server，請至少選擇一個發放網段。");
+    return;
+  }
+
   const obj={
     id:editIdEl.value || crypto.randomUUID(),
     location:locationEl.value.trim(),
     node:nodeEl.value.trim(),
     name:nameEl.value.trim(),
-    ips:ipsEl.value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean),
+    ips:parsedIps,
     purpose:purposeEl.value.trim(),
     roles:{
       router:isRouterEl.checked,
       peerRelay:isPeerRelayEl.checked,
       vpnServer:isVpnServerEl.checked,
-      dhcpNetworks:isDhcpServerEl.checked ? [...document.querySelectorAll(".dhcp-net-check:checked")].map(el=>el.value) : []
+      dhcpNetworks:isDhcpServerEl.checked ? selectedDhcpNetworks : []
     }
   };
 
@@ -506,20 +536,22 @@ function applyNodeRename(){
 
 let networkDrafts=[];
 function openNetworks(){
-  networkDrafts=networks.map(n=>({...n}));
+  // Keep a stable source index for each existing row. This is UI-only metadata and is never exported.
+  networkDrafts=networks.map((n,i)=>({...n,_sourceIndex:i}));
   renderNetworkRows();
   networkDlg.showModal();
 }
 function syncNetworkDraftFromRows(){
-  networkDrafts=[...document.querySelectorAll(".net-row")].map(row=>({
+  networkDrafts=[...networkRows.querySelectorAll(".net-row")].map(row=>({
     name:row.querySelector(".n-name").value.trim(),
     cidr:row.querySelector(".n-cidr").value.trim(),
     type:row.querySelector(".n-type").value,
-    color:row.querySelector(".n-color").value
+    color:row.querySelector(".n-color").value,
+    _sourceIndex:row.dataset.sourceIndex==="" ? null : Number(row.dataset.sourceIndex)
   }));
 }
 function renderNetworkRows(){
-  networkRows.innerHTML=networkDrafts.map((n,i)=>`<div class="net-row" data-i="${i}">
+  networkRows.innerHTML=networkDrafts.map((n,i)=>`<div class="net-row" data-i="${i}" data-source-index="${n._sourceIndex??""}">
     <input class="n-name" value="${esc(n.name)}" placeholder="名稱">
     <input class="n-cidr" value="${esc(n.cidr)}" placeholder="例如 192.0.2.0/24">
     <select class="n-type">
@@ -534,7 +566,7 @@ function renderNetworkRows(){
 }
 function addNetworkRow(){
   syncNetworkDraftFromRows();
-  networkDrafts.push({name:"",cidr:"",type:"lan",color:"#e9eef5"});
+  networkDrafts.push({name:"",cidr:"",type:"lan",color:"#e9eef5",_sourceIndex:null});
   renderNetworkRows();
 }
 function deleteNetworkRow(i){
@@ -545,16 +577,56 @@ function deleteNetworkRow(i){
 networkForm.addEventListener("submit",e=>{
   e.preventDefault();
   syncNetworkDraftFromRows();
+
   const next=[];
+  const seenNames=new Set();
+  const renameMap=new Map();
+  const survivingSourceIndexes=new Set();
+
+  // Validate the complete draft before changing live data.
   for(let i=0;i<networkDrafts.length;i++){
     const n=networkDrafts[i];
     if(!n.name&&!n.cidr) continue;
     if(!n.name||!n.cidr){alert(`第 ${i+1} 個網段請完整輸入名稱與 CIDR。`);return;}
+    if(seenNames.has(n.name)){alert(`網段名稱不可重複：「${n.name}」。`);return;}
+    seenNames.add(n.name);
     const check=validateCidr(n.cidr);
     if(!check.ok){alert(`第 ${i+1} 個網段：${check.message}`);return;}
-    next.push({...n,cidr:check.value});
+
+    if(Number.isInteger(n._sourceIndex) && networks[n._sourceIndex]){
+      survivingSourceIndexes.add(n._sourceIndex);
+      const oldName=networks[n._sourceIndex].name;
+      if(oldName!==n.name) renameMap.set(oldName,n.name);
+    }
+    next.push({name:n.name,cidr:check.value,type:n.type,color:n.color});
   }
+
+  const deletedNames=new Set(
+    networks.map((n,i)=>survivingSourceIndexes.has(i)?null:n.name).filter(Boolean)
+  );
+  const affectedNames=[...deletedNames].filter(name=>
+    devices.some(d=>(d.roles?.dhcpNetworks||[]).includes(name))
+  );
+  const affectedByDelete=devices.filter(d=>
+    (d.roles?.dhcpNetworks||[]).some(name=>deletedNames.has(name))
+  ).length;
+
+  if(affectedByDelete>0){
+    if(!confirm(`即將刪除正在被 DHCP Server 使用的網段：\n${affectedNames.join("、")}\n\n共有 ${affectedByDelete} 台裝置的 DHCP 關聯會一併移除。確定繼續？`)) return;
+  }
+
+  // Commit only after validation/confirmation succeeds.
+  const nextDevices=devices.map(d=>{
+    const roles={...(d.roles||{})};
+    if(Array.isArray(roles.dhcpNetworks)){
+      roles.dhcpNetworks=unique(roles.dhcpNetworks
+        .filter(name=>!deletedNames.has(name))
+        .map(name=>renameMap.get(name)||name));
+    }
+    return {...d,roles};
+  });
   networks=next;
+  devices=nextDevices;
   save();
   networkDlg.close();
 });
@@ -702,23 +774,56 @@ fileInput.addEventListener("change",async e=>{
   const f=e.target.files[0];if(!f)return;
   try{
     const data=JSON.parse(await f.text());
-    if(!Array.isArray(data.devices))throw new Error();
-    networks=Array.isArray(data.networks)?data.networks:DEFAULT_NETWORKS;
-    devices=data.devices.map(d=>{
-      d.roles=d.roles||{};
+    if(!Array.isArray(data.devices)) throw new Error("缺少 devices 陣列");
+
+    const candidateNetworks=Array.isArray(data.networks)?data.networks.map(n=>({...n})):DEFAULT_NETWORKS.map(n=>({...n}));
+    const seenNames=new Set();
+    for(let i=0;i<candidateNetworks.length;i++){
+      const n=candidateNetworks[i];
+      if(!n||typeof n.name!=="string"||!n.name.trim()||typeof n.cidr!=="string") throw new Error(`第 ${i+1} 個網段資料不完整`);
+      n.name=n.name.trim();
+      if(seenNames.has(n.name)) throw new Error(`網段名稱重複：${n.name}`);
+      seenNames.add(n.name);
+      const check=validateCidr(n.cidr);
+      if(!check.ok) throw new Error(`網段「${n.name}」：${check.message}`);
+      n.cidr=check.value;
+      n.type=["lan","vpn","tailscale","other"].includes(n.type)?n.type:"lan";
+      n.color=typeof n.color==="string"&&/^#[0-9a-fA-F]{6}$/.test(n.color)?n.color:"#e9eef5";
+    }
+
+    const candidateNetForIp=ip=>candidateNetworks
+      .filter(n=>inCidr(ip,n.cidr))
+      .sort((a,b)=>cidrPrefix(b.cidr)-cidrPrefix(a.cidr))[0];
+
+    const candidateDevices=data.devices.map((source,index)=>{
+      if(!source||typeof source!=="object") throw new Error(`第 ${index+1} 台裝置格式不正確`);
+      const d={...source,roles:{...(source.roles||{})}};
+      d.ips=Array.isArray(source.ips)?source.ips.map(ip=>String(ip).trim()).filter(Boolean):[];
+      for(const ip of d.ips){
+        const check=validateIPv4(ip);
+        if(!check.ok) throw new Error(`裝置「${source.name||index+1}」的 IP「${ip}」格式不正確`);
+      }
       if(!Array.isArray(d.roles.dhcpNetworks)){
         d.roles.dhcpNetworks=[];
         if(d.roles.dhcp===true){
-          const guessed=(d.ips||[]).map(ip=>netForIp(ip)).filter(n=>n && n.type!=="tailscale");
+          const guessed=d.ips.map(ip=>candidateNetForIp(ip)).filter(n=>n && n.type!=="tailscale");
           if(guessed.length)d.roles.dhcpNetworks=[guessed[0].name];
         }
+      }else{
+        d.roles.dhcpNetworks=unique(d.roles.dhcpNetworks.filter(name=>seenNames.has(name)));
       }
       delete d.roles.dhcp;
       return d;
     });
-    save();alert("TXT 載入完成")
+
+    // Atomic update: only replace current workspace after the whole file passes validation.
+    networks=candidateNetworks;
+    devices=candidateDevices;
+    pendingDeviceNetworks=[];
+    save();
+    alert("TXT 載入完成");
   }
-  catch{alert("無法讀取此 TXT。")}
+  catch(err){alert(`無法讀取此 TXT。${err?.message?"\n"+err.message:""}`)}
   e.target.value="";
 });
 function clearWorkspace(){if(confirm("確定要清空目前所有裝置與網段嗎？\n\n此操作只影響目前頁面；重新整理後會恢復預設範例。")){devices=[];networks=[];pendingDeviceNetworks=[];save();}}
