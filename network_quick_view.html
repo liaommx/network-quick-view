@@ -48,10 +48,10 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
   <button onclick="openAdd()">＋ 新增裝置</button>
   <button class="secondary" onclick="openNetworks()">🎨 網段與顏色</button>
   <button class="secondary" onclick="exportStaticHtml()">匯出靜態網頁</button>
-  <button class="secondary" onclick="exportTxt()">儲存 TXT</button>
-  <label class="filebtn secondary">載入 TXT<input id="fileInput" type="file" accept=".txt,text/plain"></label>
+  <button class="secondary" onclick="exportTxt()">儲存設定</button>
+  <label class="filebtn secondary">載入設定<input id="fileInput" type="file" accept=".txt,text/plain"></label>
   <button class="secondary" onclick="resetDefault()">恢復預設</button>
-  <span class="note">本頁每次開啟皆載入去識別化範例；實際資料請以 TXT 手動載入與保存。</span>
+  <span class="note">本頁每次開啟皆載入去識別化範例；實際資料請手動載入與保存。</span>
 </div>
 
 <section class="summary"><div class="summary-grid">
@@ -264,8 +264,7 @@ function render(){
             </div>
             ${roleBadges?`<div class="device-section-label">裝置角色</div><div class="role-row">${roleBadges}</div>`:""}
             ${dhcpBadges?`<hr class="device-divider"><div class="device-section-label">DHCP 發放網段</div><div class="role-row">${dhcpBadges}</div>`:""}
-            ${networkBadges?`<div class="device-section-label">所屬網段</div><div class="network-list">${networkBadges}</div>`:""}
-            <div class="device-section-label">IP</div>
+                        <div class="device-section-label">IP</div>
             <div class="ip-list">${ipRows}</div>
           </div>`
         }).join("")
@@ -504,8 +503,7 @@ function exportStaticHtml(){
               ${d.purpose?`<div class="purpose">${esc(d.purpose)}</div>`:""}
               ${roleBadges?`<div class="device-section-label">裝置角色</div><div class="role-row">${roleBadges}</div>`:""}
               ${dhcpBadges?`<hr class="device-divider"><div class="device-section-label">DHCP 發放網段</div><div class="role-row">${dhcpBadges}</div>`:""}
-              ${networkBadges?`<div class="device-section-label">所屬網段</div><div class="network-list">${networkBadges}</div>`:""}
-              <div class="device-section-label">IP</div>
+                            <div class="device-section-label">IP</div>
               <div class="ip-list">${ipRows}</div>
             </div>`;
           }).join("")}
