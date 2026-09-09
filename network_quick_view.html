@@ -52,6 +52,7 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
   <button class="secondary" onclick="exportTxt()">儲存設定</button>
   <label class="filebtn secondary">載入設定<input id="fileInput" type="file" accept=".txt,text/plain"></label>
   <button class="secondary" onclick="resetDefault()">恢復預設</button>
+  <button class="secondary" onclick="clearWorkspace()">🗑️ 清空目前資料</button>
   <span class="note">本頁每次開啟皆載入去識別化範例；實際資料請手動載入與保存。</span>
 </div>
 
@@ -720,6 +721,7 @@ fileInput.addEventListener("change",async e=>{
   catch{alert("無法讀取此 TXT。")}
   e.target.value="";
 });
+function clearWorkspace(){if(confirm("確定要清空目前所有裝置與網段嗎？\n\n此操作只影響目前頁面；重新整理後會恢復預設範例。")){devices=[];networks=[];pendingDeviceNetworks=[];save();}}
 function resetDefault(){if(confirm("恢復去識別化範例資料？現有資料會被取代。")){devices=DEFAULT_DEVICES.map(d=>({...d,id:crypto.randomUUID(),roles:{...(d.roles||{})}}));networks=DEFAULT_NETWORKS.map(n=>({...n}));save();}}
 render();
 </script>
