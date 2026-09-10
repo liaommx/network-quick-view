@@ -47,6 +47,7 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 <div class="toolbar">
   <button onclick="openAdd()">＋ 新增裝置</button>
   <button class="secondary" onclick="openNetworks()">🎨 網段與顏色</button>
+  <button class="secondary" onclick="openQuickRename()">✏️ 快速修改地點／節點</button>
   <button class="secondary" onclick="exportStaticHtml()">匯出靜態網頁</button>
   <button class="secondary" onclick="exportTxt()">儲存設定</button>
   <label class="filebtn secondary">載入設定<input id="fileInput" type="file" accept=".txt,text/plain"></label>
@@ -117,6 +118,45 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 </form>
 </dialog>
 
+<dialog id="renameDlg">
+<form id="renameForm">
+<h2>快速修改地點／節點</h2>
+
+<div class="field">
+  <label>修改地點名稱</label>
+  <select id="renameLocationOld" onchange="syncRenameNodeLocation()"></select>
+</div>
+<div class="field">
+  <label>新的地點名稱</label>
+  <input id="renameLocationNew" placeholder="輸入新的地點名稱">
+</div>
+<div class="form-actions" style="margin-top:10px">
+  <button type="button" onclick="applyLocationRename()">套用地點名稱</button>
+</div>
+
+<hr class="device-divider">
+
+<div class="field">
+  <label>節點所在的地點</label>
+  <select id="renameNodeLocation" onchange="refreshRenameNodeChoices()"></select>
+</div>
+<div class="field">
+  <label>修改節點名稱</label>
+  <select id="renameNodeOld"></select>
+</div>
+<div class="field">
+  <label>新的節點名稱</label>
+  <input id="renameNodeNew" placeholder="輸入新的節點名稱">
+</div>
+<div class="form-actions" style="margin-top:10px">
+  <button type="button" onclick="applyNodeRename()">套用節點名稱</button>
+</div>
+
+<div class="hint" style="margin-top:14px">修改會立即套用到目前已載入的所有相關裝置；TXT 格式不變，請記得使用「儲存設定」保存。</div>
+<div class="form-actions"><button type="button" class="secondary" onclick="renameDlg.close()">關閉</button></div>
+</form>
+</dialog>
+
 <script>
 const DEFAULT_NETWORKS = [
   {name:"範例網段 A", cidr:"192.0.2.0/24", type:"lan", color:"#dfeeff"},
@@ -133,7 +173,7 @@ const DEFAULT_DEVICES = [
 // 每次開啟都從去識別化範例開始；個人資料以手動載入 TXT 為準。
 let state = {devices:DEFAULT_DEVICES.map(d=>({...d,id:crypto.randomUUID(),roles:{...(d.roles||{})}})),networks:DEFAULT_NETWORKS.map(n=>({...n}))};
 let devices=state.devices||[], networks=state.networks||[];
-const deviceDlg=document.getElementById("deviceDlg"), networkDlg=document.getElementById("networkDlg");
+const deviceDlg=document.getElementById("deviceDlg"), networkDlg=document.getElementById("networkDlg"), renameDlg=document.getElementById("renameDlg");
 
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function save(){render();}
@@ -355,6 +395,79 @@ deviceForm.addEventListener("submit",e=>{
   save();
   deviceDlg.close();
 });
+
+
+function openQuickRename(){
+  refreshRenameLocationChoices();
+  renameDlg.showModal();
+}
+
+function refreshRenameLocationChoices(preferred=""){
+  const locations=unique(devices.map(d=>d.location));
+  const locOld=document.getElementById("renameLocationOld");
+  const nodeLoc=document.getElementById("renameNodeLocation");
+
+  const oldValue=preferred || locOld.value;
+  const nodeValue=preferred || nodeLoc.value;
+  const options=locations.map(loc=>`<option value="${esc(loc)}">${esc(loc)}</option>`).join("");
+
+  locOld.innerHTML=options;
+  nodeLoc.innerHTML=options;
+
+  if(locations.includes(oldValue)) locOld.value=oldValue;
+  if(locations.includes(nodeValue)) nodeLoc.value=nodeValue;
+  else if(locations.includes(locOld.value)) nodeLoc.value=locOld.value;
+
+  document.getElementById("renameLocationNew").value="";
+  document.getElementById("renameNodeNew").value="";
+  refreshRenameNodeChoices();
+}
+
+function syncRenameNodeLocation(){
+  const loc=document.getElementById("renameLocationOld").value;
+  const nodeLoc=document.getElementById("renameNodeLocation");
+  if([...nodeLoc.options].some(o=>o.value===loc)) nodeLoc.value=loc;
+  refreshRenameNodeChoices();
+}
+
+function refreshRenameNodeChoices(){
+  const loc=document.getElementById("renameNodeLocation").value;
+  const nodes=unique(devices.filter(d=>d.location===loc).map(d=>d.node));
+  const nodeOld=document.getElementById("renameNodeOld");
+  nodeOld.innerHTML=nodes.map(node=>`<option value="${esc(node)}">${esc(node)}</option>`).join("");
+  document.getElementById("renameNodeNew").value="";
+}
+
+function applyLocationRename(){
+  const oldName=document.getElementById("renameLocationOld").value.trim();
+  const newName=document.getElementById("renameLocationNew").value.trim();
+  if(!oldName){alert("目前沒有可修改的地點。");return;}
+  if(!newName){alert("請輸入新的地點名稱。");return;}
+  if(oldName===newName){alert("新舊地點名稱相同。");return;}
+
+  const count=devices.filter(d=>d.location===oldName).length;
+  devices.forEach(d=>{ if(d.location===oldName) d.location=newName; });
+  save();
+  refreshRenameLocationChoices(newName);
+  alert(`已更新地點名稱，共套用到 ${count} 台裝置。`);
+}
+
+function applyNodeRename(){
+  const loc=document.getElementById("renameNodeLocation").value.trim();
+  const oldName=document.getElementById("renameNodeOld").value.trim();
+  const newName=document.getElementById("renameNodeNew").value.trim();
+  if(!loc||!oldName){alert("目前沒有可修改的節點。");return;}
+  if(!newName){alert("請輸入新的節點名稱。");return;}
+  if(oldName===newName){alert("新舊節點名稱相同。");return;}
+
+  const count=devices.filter(d=>d.location===loc && d.node===oldName).length;
+  devices.forEach(d=>{ if(d.location===loc && d.node===oldName) d.node=newName; });
+  save();
+  refreshRenameLocationChoices(loc);
+  const nodeOld=document.getElementById("renameNodeOld");
+  if([...nodeOld.options].some(o=>o.value===newName)) nodeOld.value=newName;
+  alert(`已更新節點名稱，共套用到 ${count} 台裝置。`);
+}
 
 let networkDrafts=[];
 function openNetworks(){
