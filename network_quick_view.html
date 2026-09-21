@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>我的網路速查表</title>
+<title>我的網路速查表 v6.15</title>
 <style>
 :root{
   --bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#6f7b8d;--line:#dfe6ef;
@@ -21,14 +21,18 @@ button.secondary,.filebtn.secondary{background:#e9eef5;color:#213047} button.dan
 .stat{background:var(--soft);border-radius:9px;padding:10px}.stat strong{display:block;font-size:20px}.stat span{font-size:12px;color:var(--muted)}
 .legend h2{font-size:16px;margin:0 0 10px}.legend-list{display:flex;flex-wrap:wrap;gap:8px}
 .legend-chip,.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:12px;border:1px solid #0001}
+.legend-chip.clickable{cursor:pointer}.legend-chip.clickable:hover{filter:brightness(.97);box-shadow:0 1px 4px #0002}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.ip-link{font-size:12px;color:#245ea8;text-decoration:none;overflow-wrap:anywhere}.ip-link:hover{text-decoration:underline}
+.ip-edit-row{display:grid;grid-template-columns:1fr 1.5fr auto;gap:8px;align-items:center;margin-bottom:8px}.ip-edit-row button{padding:7px 9px}.network-detail-table{width:100%;border-collapse:collapse}.network-detail-table th,.network-detail-table td{text-align:left;padding:8px;border-bottom:1px solid var(--line);font-size:13px}.copy-ip{cursor:pointer}.copy-ip:hover{filter:brightness(.97)}
+@media(max-width:620px){.ip-edit-row{grid-template-columns:1fr}.ip-edit-row button{justify-self:end}}
 .location{margin-bottom:24px}.location-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}.location-header h2{margin:0;font-size:21px}
 .nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(370px,1fr));gap:16px}
 .node{background:#fbfcfe;border:1px solid var(--line);border-radius:12px;overflow:hidden}.node-head{padding:14px 16px;background:#eef3f8;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}.node-head h3{margin:0;font-size:17px}
 .device-list{padding:12px;display:flex;flex-direction:column;gap:10px}.device{background:#fff;border:1px solid var(--line);border-radius:10px;padding:13px}.device-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .device h4{margin:0 0 7px;font-size:16px}.purpose{font-size:12px;color:var(--muted);margin-bottom:8px}.role-row{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px}.device-section-label{font-size:12px;font-weight:600;color:#667085;margin:6px 0}.device-divider{border:0;border-top:1px solid var(--line);margin:10px 0}
 .badge.role{background:#fff4d8}.badge.tailscale{background:#eee9ff}.badge.vpnserver{background:#dff6ef}
-.network-list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.ip-list{display:flex;flex-direction:column;gap:6px}.ip-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px;padding:4px 7px;border:1px solid #0001}
+.network-list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.ip-list{display:flex;flex-direction:column;gap:6px}.ip-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px;padding:4px 7px;border:1px solid #0001;display:inline-block;width:142px;box-sizing:border-box;text-align:left;white-space:nowrap}
 .actions{display:flex;gap:6px;align-items:flex-start;flex:0 0 auto}.actions button{padding:5px 8px;font-size:12px;min-width:44px;height:30px;white-space:nowrap}.empty{color:var(--muted);font-size:13px;padding:7px 0}
 dialog{border:0;border-radius:12px;padding:0;box-shadow:0 15px 50px #0004;width:min(620px,95vw)} form{padding:20px} form h2{margin-top:0}.field{margin:12px 0}.field label{display:block;font-size:13px;color:#566173;margin-bottom:5px}
 input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:7px;font:inherit;background:white} textarea{min-height:72px}
@@ -40,7 +44,7 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 </head>
 <body>
 <header>
-<h1>我的網路速查表</h1>
+<h1>我的網路速查表 <span id="appVersion" style="font-size:14px;font-weight:500;color:#d7deea"></span></h1>
 <p>地點 → 網路節點 → 裝置 → IP；可用顏色快速辨識網段，也可標記 DHCP Server 與 Tailscale IP。</p>
 </header>
 <main>
@@ -78,7 +82,7 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 <div class="field"><label>地點</label><input id="location" list="locationList" required placeholder="範例地點 A / 範例地點 B"><datalist id="locationList"></datalist></div>
 <div class="field"><label>網路節點</label><input id="node" list="nodeList" required placeholder="範例節點 Alpha / 範例節點 Beta"><datalist id="nodeList"></datalist></div>
 <div class="field"><label>裝置名稱</label><input id="name" required></div>
-<div class="field"><label>IP（每行一個，可有多個）</label><textarea id="ips"></textarea><div class="hint">會依「網段與顏色」自動上色；不需要逐筆指定類型。</div></div>
+<div class="field"><label>IP / Domain URL</label><div id="ipRowsEditor"></div><button type="button" class="secondary" onclick="addIpEditorRow()">＋ 新增 IP</button><div class="hint">Domain / URL 為選填，需包含 http:// 或 https://；每個 URL 對應同一列的特定 IP。</div></div>
 <div class="field"><label>裝置角色</label><div class="checks">
   <label><input id="isRouter" type="checkbox"> Router / Gateway</label>
   <label><input id="isPeerRelay" type="checkbox"> Tailscale Peer Relay</label>
@@ -166,7 +170,16 @@ input,textarea,select{width:100%;padding:9px;border:1px solid #cbd5e1;border-rad
 </form>
 </dialog>
 
+<dialog id="networkDetailDlg">
+<form method="dialog">
+<h2 id="networkDetailTitle">網段詳細資料</h2>
+<div id="networkDetailBody"></div>
+<div class="form-actions"><button type="submit" class="secondary">關閉</button></div>
+</form>
+</dialog>
+
 <script>
+const APP_VERSION="v6.15";
 function newUuid(){
   if(globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   const bytes=new Uint8Array(16);
@@ -198,7 +211,8 @@ const DEFAULT_DEVICES=DEFAULT_STATE.devices;
 // 每次開啟都從去識別化範例開始；個人資料以手動載入 TXT 為準。
 let state = DEFAULT_STATE;
 let devices=state.devices||[], networks=state.networks||[];
-const deviceDlg=document.getElementById("deviceDlg"), networkDlg=document.getElementById("networkDlg"), renameDlg=document.getElementById("renameDlg");
+const deviceDlg=document.getElementById("deviceDlg"), networkDlg=document.getElementById("networkDlg"), renameDlg=document.getElementById("renameDlg"), networkDetailDlg=document.getElementById("networkDetailDlg");
+document.getElementById("appVersion").textContent=APP_VERSION;
 
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function save(){render();}
@@ -301,12 +315,52 @@ function addInlineDhcpNetwork(){
   document.getElementById("inlineNetworkBox").style.display="none";
 }
 
+function validHttpUrl(value){
+  if(!value) return true;
+  try{const u=new URL(value);return u.protocol==="http:"||u.protocol==="https:";}catch{return false;}
+}
+function addIpEditorRow(ip="",url=""){
+  const root=document.getElementById("ipRowsEditor");
+  const row=document.createElement("div"); row.className="ip-edit-row";
+  row.innerHTML=`<input class="ip-edit-address" placeholder="IPv4，例如 192.0.2.10" value="${esc(ip)}"><input class="ip-edit-domain" placeholder="https://host.example.com" value="${esc(url)}"><button type="button" class="secondary" onclick="this.parentElement.remove()">刪除</button>`;
+  root.appendChild(row);
+}
+function setIpEditorRows(device){
+  const root=document.getElementById("ipRowsEditor"); root.innerHTML="";
+  const ips=Array.isArray(device?.ips)?device.ips:[];
+  if(!ips.length){addIpEditorRow();return;}
+  ips.forEach(ip=>addIpEditorRow(ip,device?.ipDomains?.[ip]||""));
+}
+function ipLinkHtml(d,ip){
+  const url=d?.ipDomains?.[ip];
+  return url?`<a class="ip-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(url)}">Domain Link</a>`:"";
+}
+function networkStats(n){
+  const rows=[]; const deviceIds=new Set();
+  devices.forEach(d=>(d.ips||[]).forEach(ip=>{if(netForIp(ip)?.id===n.id){rows.push({d,ip});deviceIds.add(d.id);}}));
+  return {rows,deviceCount:deviceIds.size,ipCount:rows.length};
+}
+function showNetworkDetail(id){
+  const n=networks.find(x=>x.id===id); if(!n)return;
+  const st=networkStats(n);
+  document.getElementById("networkDetailTitle").textContent=`${n.name} · ${n.cidr}`;
+  document.getElementById("networkDetailBody").innerHTML=st.rows.length?`<table class="network-detail-table"><thead><tr><th>裝置</th><th>IP</th><th>Domain / URL</th><th>所在位置</th></tr></thead><tbody>${st.rows.map(({d,ip})=>`<tr><td>${esc(d.name)}</td><td><span class="ip copy-ip" title="點擊複製" onclick="copyIp('${esc(ip)}',this)">${esc(ip)}</span></td><td>${ipLinkHtml(d,ip)}</td><td>${esc(d.location)} / ${esc(d.node)}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">此網段目前沒有裝置 IP。</div>';
+  networkDetailDlg.showModal();
+}
+async function copyIp(ip,el){
+  try{await navigator.clipboard.writeText(ip);const old=el.textContent;el.textContent="已複製 ✓";setTimeout(()=>el.textContent=old,900);}catch{alert(`請手動複製：${ip}`);}
+}
+function isDhcpNetworkReferenced(id){return devices.some(d=>(d.roles?.dhcpNetworks||[]).includes(id));}
+function networksForExport(){
+  return networks.filter(n=>devices.some(d=>(d.ips||[]).some(ip=>netForIp(ip)?.id===n.id))||isDhcpNetworkReferenced(n.id));
+}
+
 function render(){
   const root=document.getElementById("content");root.innerHTML="";
   const locs=unique(devices.map(d=>d.location)), nodeKeys=unique(devices.map(d=>d.location+"|||"+d.node));
   locCount.textContent=locs.length;nodeCount.textContent=nodeKeys.length;deviceCount.textContent=devices.length;ipCount.textContent=devices.flatMap(d=>d.ips||[]).length;
   locationList.innerHTML=locs.map(x=>`<option value="${esc(x)}">`).join(""); nodeList.innerHTML=unique(devices.map(d=>d.node)).map(x=>`<option value="${esc(x)}">`).join("");
-  legendList.innerHTML=networks.map(n=>`<span class="legend-chip" style="background:${esc(n.color)};color:${textColor(n.color)}"><span class="dot" style="background:${esc(n.color)}"></span>${esc(n.name)} · ${esc(n.cidr)}</span>`).join("") || '<span class="note">尚未設定網段</span>';
+  legendList.innerHTML=networks.map(n=>{const st=networkStats(n);return `<span class="legend-chip clickable" onclick="showNetworkDetail('${n.id}')" style="background:${esc(n.color)};color:${textColor(n.color)}"><span class="dot" style="background:${esc(n.color)}"></span>${esc(n.name)} · ${esc(n.cidr)} · ${st.deviceCount} 台 / ${st.ipCount} IP</span>`}).join("") || '<span class="note">尚未設定網段</span>';
 
   locs.forEach(loc=>{
     const ld=devices.filter(d=>d.location===loc), nodeNames=unique(ld.map(d=>d.node));
@@ -314,7 +368,7 @@ function render(){
     sec.innerHTML=`<div class="location-header"><h2>${esc(loc)}</h2><span class="note">${ld.length} 台裝置</span></div><div class="nodes"></div>`;
     const nr=sec.querySelector(".nodes");
     nodeNames.forEach(node=>{
-      const list=ld.filter(d=>d.node===node), box=document.createElement("div");box.className="node";
+      const list=ld.filter(d=>d.node===node).map((d,i)=>({d,i})).sort((a,b)=>Number((b.d.roles?.dhcpNetworks||[]).length>0)-Number((a.d.roles?.dhcpNetworks||[]).length>0)||a.i-b.i).map(x=>x.d), box=document.createElement("div");box.className="node";
       box.innerHTML=`<div class="node-head"><h3>${esc(node)}</h3><span class="note">${list.length} 台</span></div><div class="device-list">${
         list.map(d=>{
           const r=d.roles||{};
@@ -338,7 +392,7 @@ function render(){
           const ipRows=(d.ips||[]).map(ip=>{
             const n=netForIp(ip), style=n?`background:${n.color};color:${textColor(n.color)}`:"background:#f1f4f8";
             const typeBadge=n&&n.type==="tailscale"?'<span class="badge tailscale">Tailscale IP</span>':"";
-            return `<div class="ip-row"><span class="ip" style="${style}">${esc(ip)}</span>${typeBadge}</div>`;
+            return `<div class="ip-row"><span class="ip" style="${style}">${esc(ip)}</span>${typeBadge}${ipLinkHtml(d,ip)}</div>`;
           }).join("") || '<div class="empty">尚未記錄 IP</div>';
           return `<div class="device">
             <div class="device-top">
@@ -365,7 +419,8 @@ function openAdd(){
   pendingDeviceNetworks=[];
   document.getElementById("inlineNetworkBox").style.display="none";
   document.getElementById("deviceTitle").textContent="新增裝置";
-  ["editId","location","node","name","ips","purpose"].forEach(id=>document.getElementById(id).value="");
+  ["editId","location","node","name","purpose"].forEach(id=>document.getElementById(id).value="");
+  setIpEditorRows(null);
   document.getElementById("isRouter").checked=false;
   document.getElementById("isPeerRelay").checked=false;
   document.getElementById("isVpnServer").checked=false;
@@ -383,7 +438,7 @@ function editDevice(id){
   document.getElementById("location").value=d.location;
   document.getElementById("node").value=d.node;
   document.getElementById("name").value=d.name;
-  document.getElementById("ips").value=(d.ips||[]).join("\n");
+  setIpEditorRows(d);
   document.getElementById("purpose").value=d.purpose||"";
   document.getElementById("isRouter").checked=!!d.roles?.router;
   document.getElementById("isPeerRelay").checked=!!d.roles?.peerRelay;
@@ -409,17 +464,22 @@ deviceForm.addEventListener("submit",e=>{
   const locationEl = document.getElementById("location");
   const nodeEl = document.getElementById("node");
   const nameEl = document.getElementById("name");
-  const ipsEl = document.getElementById("ips");
   const purposeEl = document.getElementById("purpose");
   const isRouterEl = document.getElementById("isRouter");
   const isPeerRelayEl = document.getElementById("isPeerRelay");
   const isVpnServerEl = document.getElementById("isVpnServer");
   const isDhcpServerEl = document.getElementById("isDhcpServer");
 
-  const parsedIps=ipsEl.value.split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);
-  for(const ip of parsedIps){
+  const parsedIps=[]; const ipDomains={};
+  for(const row of document.querySelectorAll("#ipRowsEditor .ip-edit-row")){
+    const ip=row.querySelector(".ip-edit-address").value.trim();
+    const url=row.querySelector(".ip-edit-domain").value.trim();
+    if(!ip&&!url) continue;
     const check=validateIPv4(ip);
     if(!check.ok){alert(`IP「${ip}」：${check.message}`);return;}
+    if(parsedIps.includes(ip)){alert(`IP「${ip}」在同一台裝置中重複。`);return;}
+    if(url&&!validHttpUrl(url)){alert(`IP「${ip}」的 Domain / URL 必須以 http:// 或 https:// 開頭。`);return;}
+    parsedIps.push(ip); if(url) ipDomains[ip]=url;
   }
   const selectedDhcpNetworks=[...document.querySelectorAll(".dhcp-net-check:checked")].map(el=>el.value);
   if(isDhcpServerEl.checked && selectedDhcpNetworks.length===0){
@@ -433,6 +493,7 @@ deviceForm.addEventListener("submit",e=>{
     node:nodeEl.value.trim(),
     name:nameEl.value.trim(),
     ips:parsedIps,
+    ipDomains,
     purpose:purposeEl.value.trim(),
     roles:{
       router:isRouterEl.checked,
@@ -651,6 +712,11 @@ function exportStaticHtml(){
     .legend h2{font-size:16px;margin:0 0 10px}
     .legend-list{display:flex;flex-wrap:wrap;gap:8px}
     .legend-chip,.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:12px;border:1px solid #0001}
+    .legend-chip.clickable{cursor:pointer}.legend-chip.clickable:hover{filter:brightness(.97);box-shadow:0 1px 4px #0002}
+    dialog{border:0;border-radius:12px;padding:0;box-shadow:0 15px 50px #0004;width:min(760px,95vw)}
+    dialog form{padding:20px} dialog h2{margin-top:0}.form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+    button.secondary{border:0;border-radius:8px;padding:9px 13px;background:#e9eef5;color:#213047;cursor:pointer;font-size:14px}
+    .network-detail-table{width:100%;border-collapse:collapse}.network-detail-table th,.network-detail-table td{text-align:left;padding:8px;border-bottom:1px solid #dfe6ef;font-size:13px}.copy-ip{cursor:pointer}.copy-ip:hover{filter:brightness(.97)}
     .location{margin-bottom:24px}
     .location-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
     .location-header h2{margin:0;font-size:21px}
@@ -671,7 +737,8 @@ function exportStaticHtml(){
     .network-list{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
     .ip-list{display:flex;flex-direction:column;gap:6px}
     .ip-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px;padding:4px 7px;border:1px solid #0001}
+    .ip{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px;padding:4px 7px;border:1px solid #0001;display:inline-block;width:142px;box-sizing:border-box;text-align:left;white-space:nowrap}
+    .ip-link{font-size:12px;color:#245ea8;text-decoration:none;overflow-wrap:anywhere}.ip-link:hover{text-decoration:underline}
     .empty{color:#6f7b8d;font-size:13px;padding:7px 0}
     footer{max-width:1320px;margin:0 auto 24px;padding:0 22px;color:#6f7b8d;font-size:12px}
     @media(max-width:780px){main{padding:12px}.nodes{grid-template-columns:1fr}}
@@ -681,9 +748,16 @@ function exportStaticHtml(){
   const nodeKeys=[...new Set(devices.map(d=>d.location+"|||"+d.node))];
   const ipTotal=devices.flatMap(d=>d.ips||[]).length;
 
-  const legendHtml = networks.map(n =>
-    `<span class="legend-chip" style="background:${esc(n.color)};color:${textColor(n.color)}">${esc(n.name)} · ${esc(n.cidr)}</span>`
-  ).join("") || '<span class="note">尚未設定網段</span>';
+  const legendHtml = networks.map(n => {
+    const st=networkStats(n);
+    return `<span class="legend-chip clickable" onclick="document.getElementById('net-detail-${n.id}').showModal()" style="background:${esc(n.color)};color:${textColor(n.color)}">${esc(n.name)} · ${esc(n.cidr)} · ${st.deviceCount} 台 / ${st.ipCount} IP</span>`;
+  }).join("") || '<span class="note">尚未設定網段</span>';
+
+  const networkDetailDialogs = networks.map(n => {
+    const st=networkStats(n);
+    const rows=st.rows.length?`<table class="network-detail-table"><thead><tr><th>裝置</th><th>IP</th><th>Domain / URL</th><th>所在位置</th></tr></thead><tbody>${st.rows.map(({d,ip})=>`<tr><td>${esc(d.name)}</td><td><span class="ip copy-ip" title="點擊複製" onclick="copyStaticIp('${esc(ip)}',this)">${esc(ip)}</span></td><td>${ipLinkHtml(d,ip)}</td><td>${esc(d.location)} / ${esc(d.node)}</td></tr>`).join("")}</tbody></table>`:'<div class="empty">此網段目前沒有裝置 IP。</div>';
+    return `<dialog id="net-detail-${n.id}"><form method="dialog"><h2>${esc(n.name)} · ${esc(n.cidr)}</h2>${rows}<div class="form-actions"><button type="submit" class="secondary">關閉</button></div></form></dialog>`;
+  }).join("");
 
   const bodyHtml = locations.map(loc=>{
     const ld=devices.filter(d=>d.location===loc);
@@ -692,7 +766,7 @@ function exportStaticHtml(){
       <div class="location-header"><h2>${esc(loc)}</h2><span class="note">${ld.length} 台裝置</span></div>
       <div class="nodes">
       ${nodeNames.map(node=>{
-        const list=ld.filter(d=>d.node===node);
+        const list=ld.filter(d=>d.node===node).map((d,i)=>({d,i})).sort((a,b)=>Number((b.d.roles?.dhcpNetworks||[]).length>0)-Number((a.d.roles?.dhcpNetworks||[]).length>0)||a.i-b.i).map(x=>x.d);
         return `<div class="node">
           <div class="node-head"><h3>${esc(node)}</h3><span class="note">${list.length} 台</span></div>
           <div class="device-list">
@@ -719,7 +793,7 @@ function exportStaticHtml(){
               const n=netForIp(ip);
               const style=n?`background:${n.color};color:${textColor(n.color)}`:"background:#f1f4f8";
               const label=n&&n.type==="tailscale"?'<span class="badge tailscale">Tailscale IP</span>':"";
-              return `<div class="ip-row"><span class="ip" style="${style}">${esc(ip)}</span>${label}</div>`;
+              return `<div class="ip-row"><span class="ip" style="${style}">${esc(ip)}</span>${label}${ipLinkHtml(d,ip)}</div>`;
             }).join("") || '<div class="empty">尚未記錄 IP</div>';
 
             return `<div class="device">
@@ -743,11 +817,11 @@ function exportStaticHtml(){
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>網路速查表（唯讀）</title>
+<title>網路速查表 ${APP_VERSION}（唯讀）</title>
 <style>${css}</style>
 </head>
 <body>
-<header><h1>網路速查表</h1><p>唯讀靜態版本</p></header>
+<header><h1>網路速查表 ${APP_VERSION}</h1><p>唯讀靜態版本</p></header>
 <main>
 <section class="summary"><div class="summary-grid">
   <div class="stat"><strong>${locations.length}</strong><span>地點</span></div>
@@ -757,8 +831,15 @@ function exportStaticHtml(){
 </div></section>
 <section class="legend"><h2>網段圖例</h2><div class="legend-list">${legendHtml}</div></section>
 ${bodyHtml}
+${networkDetailDialogs}
 </main>
 <footer>此檔案為匯出當下的靜態快照，不包含編輯、匯入、匯出或 LocalStorage 功能。</footer>
+<script>
+async function copyStaticIp(ip,el){
+  try{await navigator.clipboard.writeText(ip);const old=el.textContent;el.textContent="已複製 ✓";setTimeout(()=>el.textContent=old,900);}
+  catch{alert("請手動複製："+ip);}
+}
+<\/script>
 </body>
 </html>`;
 
@@ -771,7 +852,10 @@ ${bodyHtml}
 }
 
 function exportTxt(){
-  const blob=new Blob([JSON.stringify({format:"network-quick-view-v4",exportedAt:new Date().toISOString(),devices,networks},null,2)],{type:"text/plain;charset=utf-8"});
+  const exportNetworks=networksForExport();
+  const validIds=new Set(exportNetworks.map(n=>n.id));
+  const exportDevices=devices.map(d=>({...d,ipDomains:{...(d.ipDomains||{})},roles:{...(d.roles||{}),dhcpNetworks:(d.roles?.dhcpNetworks||[]).filter(id=>validIds.has(id))}}));
+  const blob=new Blob([JSON.stringify({format:"network-quick-view-v4",appVersion:APP_VERSION,exportedAt:new Date().toISOString(),devices:exportDevices,networks:exportNetworks},null,2)],{type:"text/plain;charset=utf-8"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="network-devices.txt";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 fileInput.addEventListener("change",async e=>{
@@ -809,6 +893,15 @@ fileInput.addEventListener("change",async e=>{
       const d={...source,id,roles:{...(source.roles||{})}};
       d.ips=Array.isArray(source.ips)?source.ips.map(ip=>String(ip).trim()).filter(Boolean):[];
       for(const ip of d.ips){if(!validateIPv4(ip).ok) throw new Error(`裝置「${source.name||index+1}」的 IP「${ip}」格式不正確`);}
+      d.ipDomains={};
+      if(source.ipDomains&&typeof source.ipDomains==="object"&&!Array.isArray(source.ipDomains)){
+        for(const [ip,urlRaw] of Object.entries(source.ipDomains)){
+          const url=String(urlRaw||"").trim();
+          if(!d.ips.includes(ip)||!url) continue;
+          if(!validHttpUrl(url)) throw new Error(`裝置「${source.name||index+1}」的 IP「${ip}」Domain / URL 格式不正確`);
+          d.ipDomains[ip]=url;
+        }
+      }
 
       let refs=Array.isArray(d.roles.dhcpNetworks)?d.roles.dhcpNetworks:[];
       // v6.13 and older stored network display names; v6.14 stores UUIDs.
